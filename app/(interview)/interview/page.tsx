@@ -101,7 +101,7 @@ export default function Configuration() {
     };
   }, []);
 
-  const confirmExit = () => {
+  const confirmExit = (): void => {
     setShowExitPrompt(false);
     router.replace("/");
   };
