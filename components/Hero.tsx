@@ -62,7 +62,7 @@ export const Hero = () => {
               <AlertDialogFooter>
                 <AlertDialogAction
                   onClick={() => {
-                    router.replace("/config");
+                    router.replace("/interview");
                   }}
                 >
                   Understood & Proceed
