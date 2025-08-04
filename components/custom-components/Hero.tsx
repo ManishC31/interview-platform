@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "./ui/button";
 import { useRouter } from "next/navigation";
 import {
   AlertDialog,
@@ -14,10 +13,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import InterviewConfigDialog from "@/components/custom-components/InterviewConfigDialog";
+import { Button } from "../ui/button";
 
 export const Hero = () => {
   const router = useRouter();
   const [isResumeFound, setIsResumeFound] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
   return (
     <section className="w-full min-h-screen flex items-center justify-center px-4 py-20 md:py-32 bg-background text-foreground">
       <div className="max-w-3xl w-full text-center space-y-8">
@@ -44,33 +47,8 @@ export const Hero = () => {
           </div>
         )}
 
-        <div className="flex justify-center">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" className="w-full sm:w-auto cursor-pointer px-10 py-6">
-                Start Interview
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Use Headphones for Better Experience</AlertDialogTitle>
-                <AlertDialogDescription className="text-pretty">
-                  For optimal audio quality during your assessment, we strongly recommend using headphones. This helps minimize background noise and
-                  ensures clear, uninterrupted communication throughout the interview.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogAction
-                  onClick={() => {
-                    router.replace("/interview");
-                  }}
-                >
-                  Understood & Proceed
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
+        <Button onClick={() => setDialogOpen(true)}>Start Interview</Button>
+        <InterviewConfigDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
       </div>
     </section>
   );

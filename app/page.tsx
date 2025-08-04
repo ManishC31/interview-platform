@@ -1,13 +1,9 @@
-import { Footer } from "@/components/Footer";
-import { Hero } from "@/components/Hero";
-import { Navbar } from "@/components/Navbar";
+import { Hero } from "@/components/custom-components/Hero";
 
 export default function Home() {
   return (
     <div>
-      {/* <Navbar /> */}
       <Hero />
-      <Footer />
     </div>
   );
 }
