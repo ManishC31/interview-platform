@@ -8,6 +8,17 @@ export interface IUser {
   contact_number: string;
 }
 
+export const getUserById = async (id: number) => {
+  try {
+    await connectToDatabase();
+    const response = await Candidate.findById(id);
+    return response;
+  } catch (error) {
+    console.error("Err in createNewUser:", error);
+    throw error;
+  }
+};
+
 export const createNewUser = async (user: IUser) => {
   try {
     await connectToDatabase();

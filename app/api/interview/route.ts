@@ -1,5 +1,6 @@
+import { connectToDatabase } from "@/lib/db";
 import Interview from "@/models/interview.model";
-import { createNewUser } from "@/services/candidate.service";
+import { createNewUser, getUserById } from "@/services/candidate.service";
 import { assignNewInterview } from "@/services/interview.service";
 import { getPositionById } from "@/services/position.service";
 import { NextRequest, NextResponse } from "next/server";
@@ -7,8 +8,6 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const interviewId = searchParams.get("id");
-
-  console.log("interviewId:", interviewId);
 
   if (!interviewId) {
     return NextResponse.json({
@@ -18,8 +17,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    await connectToDatabase();
     const interviewData = await Interview.findById(interviewId).exec();
-    console.log("interview data:", interviewData);
 
     if (!interviewData) {
       return NextResponse.json({
@@ -28,17 +27,17 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // TODO: fix this
+    const positionData = await getPositionById(interviewData.position_id);
+
+    const userData = await getUserById(interviewData.candidate_id);
 
     return NextResponse.json({
       success: true,
       message: "Interview data found",
       data: {
-        interview: {
-          candidate: userResponse,
-          position: positionResponse,
-          interview: interviewResponse,
-        },
+        candidate: userData,
+        position: positionData,
+        interview: interviewData,
       },
     });
   } catch (error: any) {

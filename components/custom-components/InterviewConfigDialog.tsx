@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, Mic, Video, AlertTriangle, CloudCog } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-export default function InterviewConfigDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function InterviewConfigDialog({ open, onClose, interviewId }: { open: boolean; onClose: () => void, interviewId: string }) {
+  console.log('interview', interviewId)
   const [step, setStep] = useState(1);
   const [audioDevice, setAudioDevice] = useState<MediaDeviceInfo | null>(null);
   const [cameraAvailable, setCameraAvailable] = useState<boolean | null>(null);
@@ -24,8 +25,11 @@ export default function InterviewConfigDialog({ open, onClose }: { open: boolean
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
       const devices = await navigator.mediaDevices.enumerateDevices();
+      console.log('devices:', devices)
 
       const audioInput = devices.find((d) => d.kind === "audioinput");
+      console.log('audioInput:', audioInput)
+
       setAudioDevice(audioInput || null);
       setCameraAvailable(true);
 
@@ -37,7 +41,8 @@ export default function InterviewConfigDialog({ open, onClose }: { open: boolean
   };
 
   const handleContinue = () => {
-    router.push("/interview");
+    console.log('interview id:', interviewId)
+    router.push(`/interview/${interviewId}`);
   };
 
   const renderStep = () => {
