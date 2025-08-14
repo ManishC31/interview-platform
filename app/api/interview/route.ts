@@ -10,10 +10,13 @@ export async function GET(req: NextRequest) {
   const interviewId = searchParams.get("id");
 
   if (!interviewId) {
-    return NextResponse.json({
-      success: false,
-      message: "Interview id not found",
-    });
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Interview id not found",
+      },
+      { status: 400 }
+    );
   }
 
   try {

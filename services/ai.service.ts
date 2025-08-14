@@ -412,9 +412,17 @@ export const generateQuestion = async (jobDescription: Object, resume: Object, c
           "question": "Next question or follow-up to ask the candidate, or null if exiting",
           "category": "Introduction | Experience & Achievements | Domain Specific | Behavioral & Situational | Role-Specific | Closing | null",
           "question_count": {
+            // Preserve the entire existing 'question_count' object provided in context, including 'total' and all category counts.
+            // Increment 'total' by 1.
+            // If the current category already exists in 'per_category', increment its count by 1.
+            // If the current category does not exist, add it to 'per_category' with a value of 1.
+            // Do not remove or overwrite any previous category data.
+            // Always return the full updated object containing all previously tracked categories and their counts.
             "total": number,
-            "per_category": {"name of the selected category": number}
-          },
+            "per_category": {
+              "categoryName": number
+            }
+          }
           "strategy_note": "Why this decision was made (e.g., 'Follow-up for missing scenario', 'Ending due to emotional situation', 'Rephrasing due to irrelevance')",
           "isClosed": true | false
         }

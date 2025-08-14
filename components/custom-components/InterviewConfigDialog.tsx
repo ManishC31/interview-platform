@@ -3,6 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Mic, Video, AlertTriangle, CloudCog } from "lucide-react";
 import { useRouter } from "next/navigation";
+import axios from "axios";
+import toast from "react-hot-toast";
 
 export default function InterviewConfigDialog({ open, onClose, interviewId }: { open: boolean; onClose: () => void, interviewId: string }) {
   console.log('interview', interviewId)
@@ -40,9 +42,19 @@ export default function InterviewConfigDialog({ open, onClose, interviewId }: { 
     }
   };
 
-  const handleContinue = () => {
-    console.log('interview id:', interviewId)
-    router.push(`/interview/${interviewId}`);
+  const handleContinue = async () => {
+    try {
+      const response = await axios.get(`/api/interview/start/${interviewId}`);
+      if (response.data.success) {
+        router.push(`/interview/${interviewId}`);
+      } else {
+        // If API returns success: false
+        toast.error("Failed to start the interview.");
+      }
+    } catch (error: any) {
+      console.log("handle Continue error:", error);
+      toast.error("Failed to start the interview.");
+    }
   };
 
   const renderStep = () => {

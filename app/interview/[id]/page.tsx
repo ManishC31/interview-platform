@@ -30,7 +30,7 @@ export default function InterviewPage() {
   const [currentQuestion, setCurrentQuestion] = useState("")
 
   // for transcription
-  const [audioStream, setAudioStream] = useState<any>(null)
+  // const [audioStream, setAudioStream] = useState<any>(null)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [transcription, setTranscription] = useState("")
 
@@ -142,23 +142,15 @@ export default function InterviewPage() {
       }
     };
 
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = '';
-      return '';
-    };
-
     const handleBlur = () => {
       setShowExitPrompt(true);
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("beforeunload", handleBeforeUnload);
     window.addEventListener("blur", handleBlur);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("beforeunload", handleBeforeUnload);
       window.removeEventListener("blur", handleBlur);
     };
   }, []);
@@ -166,21 +158,6 @@ export default function InterviewPage() {
 
   const fetchFirstQuestion = async () => {
     try {
-
-      // setup the audio stream
-      // get the default device id for audio recognition (audioStream)
-      // Get the default audio input device and create a stream for audio recognition
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const audioInput = devices.find(device => device.kind === "audioinput");
-      if (!audioInput) {
-        throw new Error("No audio input device found");
-      }
-      const audioStream = await navigator.mediaDevices.getUserMedia({
-        audio: { deviceId: audioInput.deviceId ? { exact: audioInput.deviceId } : undefined }
-      });
-
-      setAudioStream(audioStream)
-
       // get the first question
       const response = await axios.post('/api/question/new', { interview_id: interviewId })
 
@@ -193,12 +170,16 @@ export default function InterviewPage() {
             setQuestionPlayed(true);
           }, 4000); // Wait for intro message to finish
         }
+
+        if (response.data.data.is_interview_closed && !response.data.data.question) {
+          speakText("It's been great speaking with you today. We appreciate the time and thought you've put into your answers, and we'll be in touch once we've completed our review process.")
+          handleInterviewFinish()
+        }
       } else {
-        handleLastMessage()
+        handleInterviewFinish()
       }
     } catch (error) {
       console.log('fetchFirstQuestion err:', error)
-      // TODO: handle the condition
     }
   }
 
@@ -242,27 +223,39 @@ export default function InterviewPage() {
 
 
   // function to end the interview
-  const handleLastMessage = async () => {
+  const handleInterviewFinish = async () => {
     try {
-      console.log("Interview finished, calling finish API");
-
       // Call the finish API with the same data structure as question/new
-      const response = await axios.post('/api/interview/finish', {
-        interview_id: interviewId,
-        question: currentQuestion,
-        answer: transcriptionRef.current || ""
-      });
-
+      const response = await axios.get(`/api/interview/finish/${interviewId}`);
       console.log("Finish API response:", response.data);
     } catch (error) {
       console.error("Error calling finish API:", error);
     } finally {
-      // Stop all media streams
+      // Stop all media streams and release camera/mic access
       if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+        stream.getTracks().forEach((track) => {
+          track.stop();
+        });
       }
-      if (audioStream) {
-        audioStream.getTracks().forEach((track: any) => track.stop());
+
+      // Explicitly release camera and microphone access
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        for (const device of devices) {
+          if (device.kind === "videoinput" || device.kind === "audioinput") {
+            try {
+              const tempStream = await navigator.mediaDevices.getUserMedia({
+                video: device.kind === "videoinput",
+                audio: device.kind === "audioinput",
+              });
+              tempStream.getTracks().forEach((track) => track.stop());
+            } catch (err) {
+              // Ignore errors if device is already released or unavailable
+            }
+          }
+        }
+      } catch (err) {
+        // Ignore errors in device enumeration
       }
 
       // Stop transcription if it's running
@@ -275,19 +268,29 @@ export default function InterviewPage() {
         }
       }
 
-      // Redirect to main page with interview ID
-      router.replace(`/?id=${interviewId}`);
+      // Wait a moment to ensure camera/mic are released before redirecting
+      setTimeout(() => {
+        window.location.href = `/?id=${interviewId}`;
+
+        // leave fullscreen
+        if (document.fullscreenElement) {
+          document.exitFullscreen?.();
+        } else if ((document as any).webkitFullscreenElement) {
+          (document as any).webkitExitFullscreen?.();
+        } else if ((document as any).msFullscreenElement) {
+          (document as any).msExitFullscreen?.();
+        }
+      }, 300);
     }
   }
 
   const confirmInterviewExit = (): void => {
     setShowExitPrompt(false);
-    router.replace("/");
+    handleInterviewFinish()
   };
 
   const cancelInterviewExit = () => {
     setShowExitPrompt(false);
-    // Optionally re-enter fullscreen if needed
     goFullscreen();
   };
 
@@ -305,9 +308,7 @@ export default function InterviewPage() {
 
   // function to exit the interview.
   const handleLeaveInterview = () => {
-    stream?.getTracks().forEach((track) => track.stop());
-    setShowExitPrompt(false);
-    router.replace("/");
+    setShowExitPrompt(true)
   };
 
 
@@ -401,8 +402,6 @@ export default function InterviewPage() {
   // stop transcription
   const stopTranscription = async () => {
     try {
-      console.log("Ensuring all transcription is finalized:", transcriptionRef.current);
-
       if (recognizerRef.current && isTranscribing) {
         // Clear any pending timeouts
         if (transcriptionTimeoutRef.current) {
@@ -442,10 +441,10 @@ export default function InterviewPage() {
                         // Speak the new question
                         speakText(response.data.data.question);
                       } else {
-                        handleLastMessage();
+                        handleInterviewFinish();
                       }
                     } else {
-                      handleLastMessage();
+                      handleInterviewFinish();
                     }
                   } catch (error) {
                     console.error('Error calling question API:', error);
@@ -479,9 +478,9 @@ export default function InterviewPage() {
       {/* Navbar */}
       <header className="border-b bg-card">
         <div className="flex items-center justify-between px-6 py-4">
-          <h1 className="text-xl font-bold">AssessHub</h1>
+          <h1 className="text-2xl font-bold text-foreground">AssessHub</h1>
           <div className="flex items-center gap-4">
-            <span className="text-lg font-mono">{formatTime(timer)}</span>
+            <span className="text-lg font-mono text-foreground">{formatTime(timer)}</span>
             <Button variant="destructive" size="sm" onClick={handleLeaveInterview} className="gap-2">
               <Phone className="w-4 h-4" />
               Leave Interview
@@ -495,7 +494,7 @@ export default function InterviewPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-200px)]">
 
           {/* User Video Card */}
-          <Card className={`${isMobile && isInterviewerSpeaking ? 'hidden' : 'lg:col-span-2'} overflow-hidden h-full ${!isSpeaking && !isTranscribing ? 'ring-4 ring-green-500 ring-opacity-50' : ''}`}>
+          <Card className={`${isMobile && isInterviewerSpeaking ? 'hidden' : 'lg:col-span-2'} overflow-hidden h-full ${!isSpeaking && !isTranscribing ? 'ring-4 ring-green-500 ring-opacity-50 shadow-2xl' : ''}`}>
             <CardContent className="p-0 h-full">
               <div className="relative h-full bg-muted overflow-hidden">
                 <video
@@ -507,19 +506,20 @@ export default function InterviewPage() {
                   className="w-full h-full object-cover"
                   style={{ margin: 0, padding: 0, display: 'block' }}
                 />
-                <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-full px-3 py-1">
-                  <User className="w-4 h-4 text-white" />
-                  <span className="text-white text-sm font-medium">You</span>
+                <div className="absolute top-4 left-4 flex items-center gap-2 bg-background/80 backdrop-blur-sm rounded-full px-3 py-1 border">
+                  <User className="w-4 h-4 text-foreground" />
+                  <span className="text-foreground text-sm font-medium">You</span>
                 </div>
 
                 {/* button to start & stop the transcription */}
-                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 flex flex-col gap-2 items-center justify-center w-full">
-                  {currentQuestion ? (<div className='bg-black/50 text-center text-base text-pretty'>{currentQuestion}</div>) : null}
+                <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex flex-col gap-2 items-center justify-center w-full">
+                  {/* {currentQuestion ? (<div className='bg-background/80 text-center text-base text-pretty p-2 rounded-t-lg border-t border-l border-r'>{currentQuestion}</div>) : null} */}
                   {!isTranscribing ? (
                     <Button
-                      className="bg-green-500 hover:bg-green-600 text-white px-8 py-3 text-lg font-semibold shadow-lg"
+                      className="px-8 py-4 text-lg font-semibold shadow-lg"
                       onClick={startTranscription}
                       disabled={isTranscribing || isSpeaking}
+                      variant='secondary'
                     >
                       Start Recording
                     </Button>
@@ -560,9 +560,9 @@ export default function InterviewPage() {
                     </div>
                   )}
                 </div>
-                <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-full px-3 py-1">
-                  <Bot className="w-4 h-4 text-white" />
-                  <span className="text-white text-sm font-medium">Interviewer</span>
+                <div className="absolute top-4 left-4 flex items-center gap-2 bg-background/80 backdrop-blur-sm rounded-full px-3 py-1 border">
+                  <Bot className="w-4 h-4 text-foreground" />
+                  <span className="text-foreground text-sm font-medium">Interviewer</span>
                 </div>
               </div>
             </CardContent>
@@ -592,18 +592,20 @@ export default function InterviewPage() {
           </div>
         )}
 
+        {currentQuestion ? (<div className='my-3 bg-background/80 text-center text-base text-pretty p-2 rounded-lg border-t border-l border-r border-b'>{currentQuestion}</div>) : null}
+
         {/* Transcription Display */}
-        {transcription && (
+        {/* {transcription && (
           <div className="mt-6 p-4 bg-card rounded-lg border">
-            <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+            <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-foreground">
               <Mic className="w-5 h-5" />
               Your Response
             </h3>
             <div className="bg-muted p-3 rounded-md min-h-[100px] max-h-[200px] overflow-y-auto">
-              <p className="text-sm leading-relaxed">{transcription}</p>
+              <p className="text-sm leading-relaxed text-foreground">{transcription}</p>
             </div>
           </div>
-        )}
+        )} */}
 
       </main>
 

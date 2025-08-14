@@ -67,6 +67,13 @@ export async function POST(req: NextRequest) {
       oldConversation.push(questionResponse.next);
     } else {
       // add questionResponse.evaluation to the last object of conversation array
+      // Ensure the new question object in oldConversation has the question_count from questionResponse.next
+      // If question_count already exists, update; otherwise, add it
+      if (questionResponse.next && questionResponse.next.question_count) {
+        // Attach question_count to the new question object being pushed
+        // If questionResponse.next is a plain object, we can safely add/overwrite the property
+        questionResponse.next.question_count = questionResponse.next.question_count;
+      }
 
       oldConversation[oldConversation.length - 1].evaluation = questionResponse.evaluation;
       oldConversation[oldConversation.length - 1].answer = answer;

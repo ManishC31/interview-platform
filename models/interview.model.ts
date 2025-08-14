@@ -10,7 +10,6 @@ export interface IInterview {
   active?: boolean;
   status?: "not_started" | "in_progress" | "aborted" | "completed";
   conversation?: any[];
-  interview_url?: string;
   result_status?: "not_attempted_yet" | "in_progress" | "completed";
   result?: Record<string, any>;
   started_on?: Date;
@@ -55,10 +54,6 @@ const interviewSchema = new Schema<IInterview>(
     conversation: {
       type: Array,
       default: [],
-    },
-    interview_url: {
-      type: String,
-      default: "",
     },
     result_status: {
       type: String,
