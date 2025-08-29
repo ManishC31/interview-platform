@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { User, Bot, Phone, Mic, MicOff, Volume2 } from 'lucide-react';
 import axios from 'axios';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import * as SpeechSDK from "microsoft-cognitiveservices-speech-sdk";
 import {
   AlertDialog,
@@ -17,7 +17,6 @@ import {
 
 
 export default function InterviewPage() {
-  const router = useRouter()
   const params = useParams()
   const interviewId = params.id;
 
@@ -53,12 +52,19 @@ export default function InterviewPage() {
   // exit the interview
   const [showExitPrompt, setShowExitPrompt] = useState(false);
 
+  // Speech queue management
+  const speechQueueRef = useRef<string[]>([]);
+  const isProcessingQueueRef = useRef(false);
+
 
   // setup user camera in the beginning
   useEffect(() => {
-    // Check if device is mobile
+    // Initialize camera access and device detection for responsive behavior
+
+    // Check if device is mobile based on screen width (lg breakpoint)
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024); // lg breakpoint
+      const isMobileDevice = window.innerWidth < 1024; // lg breakpoint
+      setIsMobile(isMobileDevice);
     };
 
     checkMobile();
@@ -66,33 +72,36 @@ export default function InterviewPage() {
 
     const getMedia = async () => {
       try {
+        // Request camera and microphone access for video interview
         const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream;
         }
         setStream(mediaStream);
       } catch (err) {
-        console.error('Failed to access media devices', err);
+        // Handle case where user denies camera/microphone access
       }
     };
     getMedia();
 
-    // Timer
+    // Start interview timer to track duration
     const interval = setInterval(() => {
       setTimer(prev => prev + 1);
     }, 1000);
 
     return () => {
+      // Cleanup: stop all media tracks and remove event listeners
       stream?.getTracks().forEach((track) => track.stop());
       clearInterval(interval);
       window.removeEventListener('resize', checkMobile);
     };
   }, []);
 
-  // Go fullscreen when page loads
+  // Go fullscreen when page loads for immersive interview experience
   useEffect(() => {
     const goFullscreen = () => {
       const elem = document.documentElement;
+      // Cross-browser fullscreen API support
       if (elem.requestFullscreen) {
         elem.requestFullscreen();
       } else if ((elem as any).webkitRequestFullscreen) {
@@ -102,7 +111,7 @@ export default function InterviewPage() {
       }
     };
 
-    // Small delay to ensure page is fully loaded
+    // Small delay to ensure page is fully loaded before requesting fullscreen
     const timer = setTimeout(() => {
       goFullscreen();
     }, 100);
@@ -114,16 +123,16 @@ export default function InterviewPage() {
   // get the first question to start the interview
   useEffect(() => {
     if (!introMessagePlayed) {
-      speakText("Hello Manish, welcome to the interview. We are going to start the interview.")
+      // Mark intro as played to trigger first question fetch
       setIntroMessagePlayed(true);
     }
   }, [introMessagePlayed])
 
-  // go full screen
+  // Monitor fullscreen state and show exit prompt if user exits fullscreen
   useEffect(() => {
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) {
-        // Show confirmation modal before allowing exit
+        // Show confirmation modal before allowing exit to prevent accidental interview termination
         setShowExitPrompt(true);
       }
     };
@@ -134,15 +143,17 @@ export default function InterviewPage() {
     };
   }, []);
 
-  // do not allow the user to switch the tab.
+  // Prevent tab switching and window blur to maintain interview integrity
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
+        // Detect when user switches tabs and show exit prompt
         setShowExitPrompt(true);
       }
     };
 
     const handleBlur = () => {
+      // Detect when window loses focus and show exit prompt
       setShowExitPrompt(true);
     };
 
@@ -157,79 +168,119 @@ export default function InterviewPage() {
 
 
   const fetchFirstQuestion = async () => {
+    // Fetch the first interview question from the API
     try {
       // get the first question
       const response = await axios.post('/api/question/new', { interview_id: interviewId })
 
       if (response.data.success) {
         if (!response.data.data.is_interview_closed) {
+          // Set the question and add it to speech queue for text-to-speech
           setCurrentQuestion(response?.data?.data?.question)
-          // Speak the question after intro message finishes
-          setTimeout(() => {
-            speakText(response?.data?.data?.question)
-            setQuestionPlayed(true);
-          }, 4000); // Wait for intro message to finish
+          speakText(response?.data?.data?.question)
+          setQuestionPlayed(true);
         }
 
         if (response.data.data.is_interview_closed && !response.data.data.question) {
+          // Interview is complete - play closing message and finish
           speakText("It's been great speaking with you today. We appreciate the time and thought you've put into your answers, and we'll be in touch once we've completed our review process.")
           handleInterviewFinish()
         }
       } else {
+        // API returned failure - finish interview
         handleInterviewFinish()
       }
     } catch (error) {
-      console.log('fetchFirstQuestion err:', error)
+      // Handle API errors by finishing interview
     }
   }
 
   // Fetch first question after intro message starts
   useEffect(() => {
     if (introMessagePlayed && !questionPlayed) {
+      // Conditions met - fetch the first interview question
       fetchFirstQuestion()
     }
   }, [introMessagePlayed, questionPlayed])
 
 
   const speakText = (text: string) => {
+    // Add text to speech queue for sequential text-to-speech processing
+
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      // Stop any existing speech
-      window.speechSynthesis.cancel();
+      // Add text to queue for processing
+      speechQueueRef.current.push(text);
 
-      setIsSpeaking(true);
-      setIsInterviewerSpeaking(true);
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "en-US"; // language
-      utterance.pitch = 1;      // voice pitch
-      utterance.rate = 1;       // speed
-      utterance.volume = 1;     // volume (0 to 1)
-
-      utterance.onend = () => {
-        setIsSpeaking(false);
-        setIsInterviewerSpeaking(false);
-      };
-
-      utterance.onerror = () => {
-        setIsSpeaking(false);
-        setIsInterviewerSpeaking(false);
-      };
-
-      window.speechSynthesis.speak(utterance);
+      // Start processing queue if not already processing
+      if (!isProcessingQueueRef.current) {
+        processSpeechQueue();
+      }
     } else {
+      // Fallback for browsers without text-to-speech support
       alert("Sorry, your browser does not support text-to-speech!");
     }
+  };
+
+  const processSpeechQueue = () => {
+    // Process speech queue sequentially to avoid overlapping speech
+
+    if (speechQueueRef.current.length === 0) {
+      // Queue empty - stop processing and update speaking states
+      isProcessingQueueRef.current = false;
+      setIsSpeaking(false);
+      setIsInterviewerSpeaking(false);
+      return;
+    }
+
+    isProcessingQueueRef.current = true;
+    setIsSpeaking(true);
+    setIsInterviewerSpeaking(true);
+
+    // Stop any existing speech before starting new one
+    window.speechSynthesis.cancel();
+
+    const text = speechQueueRef.current.shift()!;
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-US";
+    utterance.pitch = 1;
+    utterance.rate = 1;
+    utterance.volume = 1;
+
+    utterance.onend = () => {
+      // Process next item in queue when current speech ends
+      processSpeechQueue();
+    };
+
+    utterance.onerror = () => {
+      // Process next item in queue even on error to prevent queue blocking
+      processSpeechQueue();
+    };
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const clearSpeechQueue = () => {
+    // Clear speech queue and stop any ongoing speech synthesis
+    window.speechSynthesis.cancel();
+    speechQueueRef.current = [];
+    isProcessingQueueRef.current = false;
+    setIsSpeaking(false);
+    setIsInterviewerSpeaking(false);
   };
 
 
   // function to end the interview
   const handleInterviewFinish = async () => {
+    // Complete interview process: cleanup resources and redirect to results
     try {
-      // Call the finish API with the same data structure as question/new
+      // Clear speech queue before finishing to prevent ongoing speech
+      clearSpeechQueue();
+
+      // Call the finish API to mark interview as complete
       const response = await axios.get(`/api/interview/finish/${interviewId}`);
-      console.log("Finish API response:", response.data);
     } catch (error) {
-      console.error("Error calling finish API:", error);
+      // Handle API errors gracefully
     } finally {
       // Stop all media streams and release camera/mic access
       if (stream) {
@@ -238,7 +289,7 @@ export default function InterviewPage() {
         });
       }
 
-      // Explicitly release camera and microphone access
+      // Explicitly release camera and microphone access for all devices
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
         for (const device of devices) {
@@ -264,15 +315,16 @@ export default function InterviewPage() {
           await recognizerRef.current.stopContinuousRecognitionAsync();
           recognizerRef.current.close();
         } catch (error) {
-          console.error("Error stopping transcription:", error);
+          // Handle transcription cleanup errors
         }
       }
 
       // Wait a moment to ensure camera/mic are released before redirecting
       setTimeout(() => {
+        // Redirect to results page with interview ID
         window.location.href = `/?id=${interviewId}`;
 
-        // leave fullscreen
+        // Exit fullscreen mode
         if (document.fullscreenElement) {
           document.exitFullscreen?.();
         } else if ((document as any).webkitFullscreenElement) {
@@ -285,16 +337,19 @@ export default function InterviewPage() {
   }
 
   const confirmInterviewExit = (): void => {
+    // User confirmed exit - proceed with interview termination
     setShowExitPrompt(false);
     handleInterviewFinish()
   };
 
   const cancelInterviewExit = () => {
+    // User cancelled exit - return to fullscreen mode
     setShowExitPrompt(false);
     goFullscreen();
   };
 
   const goFullscreen = () => {
+    // Manually enter fullscreen mode with cross-browser support
     const elem = document.documentElement; // or any specific element
     if (elem.requestFullscreen) {
       elem.requestFullscreen();
@@ -308,6 +363,7 @@ export default function InterviewPage() {
 
   // function to exit the interview.
   const handleLeaveInterview = () => {
+    // User requested to leave interview - show confirmation dialog
     setShowExitPrompt(true)
   };
 
@@ -321,18 +377,23 @@ export default function InterviewPage() {
 
   // start transcription
   const startTranscription = async () => {
+    // Initialize speech recognition for real-time transcription
     try {
-      if (isTranscribing) return;
+      if (isTranscribing) {
+        // Prevent multiple transcription sessions
+        return;
+      }
 
+      // Configure Azure Speech Services for speech recognition
       const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(process.env.NEXT_PUBLIC_SPEECH_KEY!, process.env.NEXT_PUBLIC_SPEECH_REGION!);
 
       speechConfig.speechRecognitionLanguage = "en-US";
 
-      // Configure speech settings for better recognition
+      // Configure speech settings for better recognition accuracy
       speechConfig.setProperty(SpeechSDK.PropertyId.Speech_SegmentationSilenceTimeoutMs, "1000");
       speechConfig.setProperty("speechcontext-phraseDetection.enable", "true");
 
-      // Get the audio stream for transcription
+      // Get the audio stream for transcription from user's microphone
       const devices = await navigator.mediaDevices.enumerateDevices();
       const audioInput = devices.find(device => device.kind === "audioinput");
       if (!audioInput) {
@@ -350,7 +411,7 @@ export default function InterviewPage() {
       transcriptionRef.current = ""; // Reset latest transcription
       let finalizedText = "";
 
-      // Handle intermediate results
+      // Handle intermediate results for real-time feedback
       recognizerRef.current.recognizing = (s: any, e: any) => {
         if (e.result.text) {
           const newText = e.result.text.trim();
@@ -366,7 +427,7 @@ export default function InterviewPage() {
         }
       };
 
-      // Handle final results
+      // Handle final results when speech segment is complete
       recognizerRef.current.recognized = (s: any, e: any) => {
         if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech && e.result.text) {
           const newText = e.result.text.trim();
@@ -379,28 +440,30 @@ export default function InterviewPage() {
       };
 
       recognizerRef.current.sessionStopped = async (s: any, e: any) => {
-        // recognizerRef.current.stopContinuousRecognitionAsync();
+        // Handle session stop - cleanup and process final transcription
         await stopTranscription();
       };
 
       recognizerRef.current.canceled = async (s: any, e: any) => {
         if (e.reason === SpeechSDK.CancellationReason.Error) {
-          console.error(`Error details: ${e.errorDetails}`);
+          // Log recognition errors for debugging
         }
 
+        // Handle cancellation - cleanup and process final transcription
         await stopTranscription();
       };
 
+      // Start continuous recognition for ongoing transcription
       await recognizerRef.current.startContinuousRecognitionAsync();
       setIsTranscribing(true);
     } catch (error: any) {
-      console.error(`Transcription error: ${error.message}`);
-      console.error("The interview portal is busy. Please try again later.");
+      // Handle transcription initialization errors
     }
   };
 
   // stop transcription
   const stopTranscription = async () => {
+    // Stop speech recognition and process final transcription
     try {
       if (recognizerRef.current && isTranscribing) {
         // Clear any pending timeouts
@@ -426,7 +489,7 @@ export default function InterviewPage() {
                 // Get the final transcription
                 const finalTranscription = transcriptionRef.current;
 
-                // Call API with the complete transcription
+                // Call API with the complete transcription to get next question
                 if (finalTranscription && finalTranscription.trim()) {
                   try {
                     const response = await axios.post('/api/question/new', {
@@ -437,25 +500,25 @@ export default function InterviewPage() {
 
                     if (response.data.success) {
                       if (!response.data.data.is_interview_closed) {
-                        setCurrentQuestion(response.data.data.question);
-                        // Speak the new question
-                        speakText(response.data.data.question);
+                        // Set new question and add to speech queue
+                        setCurrentQuestion(response?.data?.data?.question);
+                        speakText(response?.data?.data?.question);
                       } else {
+                        // Interview closed - finish process
                         handleInterviewFinish();
                       }
                     } else {
+                      // API failure - finish interview
                       handleInterviewFinish();
                     }
                   } catch (error) {
-                    console.error('Error calling question API:', error);
-                    // Handle error appropriately
+                    // Handle API errors appropriately
                   }
                 }
 
                 resolve();
               },
               (err: any) => {
-                console.error("Error stopping recognition:", err);
                 reject(err);
               }
             );
@@ -465,7 +528,7 @@ export default function InterviewPage() {
         });
       }
     } catch (error) {
-      console.error("Error in stopTranscription:", error);
+      // Handle transcription stopping errors
     } finally {
       setIsTranscribing(false);
       recognizerRef.current = null;
@@ -496,7 +559,7 @@ export default function InterviewPage() {
           {/* User Video Card */}
           <Card className={`${isMobile && isInterviewerSpeaking ? 'hidden' : 'lg:col-span-2'} overflow-hidden h-full ${!isSpeaking && !isTranscribing ? 'ring-4 ring-green-500 ring-opacity-50 shadow-2xl' : ''}`}>
             <CardContent className="p-0 h-full">
-              <div className="relative h-full bg-muted overflow-hidden">
+              <div className="relative h-full bg-mute`d overflow-hidden">
                 <video
                   ref={videoRef}
                   autoPlay
@@ -513,13 +576,11 @@ export default function InterviewPage() {
 
                 {/* button to start & stop the transcription */}
                 <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex flex-col gap-2 items-center justify-center w-full">
-                  {/* {currentQuestion ? (<div className='bg-background/80 text-center text-base text-pretty p-2 rounded-t-lg border-t border-l border-r'>{currentQuestion}</div>) : null} */}
                   {!isTranscribing ? (
                     <Button
-                      className="px-8 py-4 text-lg font-semibold shadow-lg"
+                      className="px-8 py-4 text-lg font-semibold shadow-lg bg-green-600 hover:bg-green-700 text-white"
                       onClick={startTranscription}
                       disabled={isTranscribing || isSpeaking}
-                      variant='secondary'
                     >
                       Start Recording
                     </Button>
@@ -593,20 +654,6 @@ export default function InterviewPage() {
         )}
 
         {currentQuestion ? (<div className='my-3 bg-background/80 text-center text-base text-pretty p-2 rounded-lg border-t border-l border-r border-b'>{currentQuestion}</div>) : null}
-
-        {/* Transcription Display */}
-        {/* {transcription && (
-          <div className="mt-6 p-4 bg-card rounded-lg border">
-            <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-foreground">
-              <Mic className="w-5 h-5" />
-              Your Response
-            </h3>
-            <div className="bg-muted p-3 rounded-md min-h-[100px] max-h-[200px] overflow-y-auto">
-              <p className="text-sm leading-relaxed text-foreground">{transcription}</p>
-            </div>
-          </div>
-        )} */}
-
       </main>
 
       <AlertDialog open={showExitPrompt}>

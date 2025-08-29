@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  web:
+    image: ${DOCKER_IMAGE_NAME:-interview-platform}:latest
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - redis
+    restart: unless-stopped
+    command: ["npm", "run", "start"]
+
+  worker:
+    image: ${DOCKER_IMAGE_NAME:-interview-platform}:latest
+    build: .
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - redis
+    restart: unless-stopped
+    command: ["npm", "run", "start:worker"]
+
+  bull-board:
+    image: ${DOCKER_IMAGE_NAME:-interview-platform}:latest
+    build: .
+    ports:
+      - "3010:3010"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - BULL_BOARD_PORT=3010
+    depends_on:
+      - redis
+    restart: unless-stopped
+    command: ["npm", "run", "start:bull-board"]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  redis-data:

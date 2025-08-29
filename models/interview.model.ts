@@ -76,5 +76,5 @@ const interviewSchema = new Schema<IInterview>(
   }
 );
 
-const Interview = mongoose.models.genai_interview || mongoose.model("genai_interview", interviewSchema);
+const Interview = mongoose.models.genai2_interview || mongoose.model("genai2_interview", interviewSchema);
 export default Interview;

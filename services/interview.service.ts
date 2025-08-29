@@ -1,4 +1,3 @@
-import Candidate, { ICandidate } from "@/models/candidate.model";
 import Interview, { IInterview } from "@/models/interview.model";
 import { connectToDatabase } from "@/lib/db";
 

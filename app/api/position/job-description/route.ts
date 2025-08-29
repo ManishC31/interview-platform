@@ -3,6 +3,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import Position from "@/models/position.model";
 import PDFParser from "pdf2json";
+import { refineJobDescription } from "@/services/ai.service";
 
 // Utility function to parse PDF and return parsed text as a Promise
 function parsePdf(filePath: string): Promise<string> {
@@ -26,6 +27,8 @@ export async function POST(request: NextRequest) {
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
   const positionId = formData.get("position_id");
+
+  console.log("position id:", positionId);
 
   if (!file) {
     return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
@@ -68,6 +71,11 @@ export async function POST(request: NextRequest) {
       } else {
         console.log("JD text updated for position:", id);
       }
+
+      // pass text to AI and get the json object.
+      const jsonObject = await refineJobDescription(parsedText);
+
+      await Position.findByIdAndUpdate(id, { $set: { jd_object: jsonObject } }, { new: true, runValidators: true });
     } catch (err) {
       console.error("DB update error:", err);
     }

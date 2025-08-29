@@ -34,3 +34,51 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Docker
+
+Build locally:
+
+```bash
+docker build -t interview-platform:local .
+```
+
+Run locally (ensure required env vars are set or mount an env file):
+
+```bash
+docker run --rm -p 3000:3000 \
+  --env-file .env \
+  interview-platform:local
+```
+
+Minimal env vars typically required (set in your deployment environment):
+
+- `MONGODB_URI`
+- `OPENAI_API_KEY`
+- `REDIS_URL` (or `REDIS_HOST`, `REDIS_PORT`)
+- Any other keys referenced in `services/*.ts`
+
+## Bitbucket Pipelines
+
+This repo includes `bitbucket-pipelines.yml` which builds and pushes a Docker image on `main`.
+
+Required Bitbucket repository variables:
+
+- `DOCKERHUB_USERNAME`: Docker Hub username
+- `DOCKERHUB_PASSWORD`: Docker Hub access token/password
+- `DOCKER_IMAGE_NAME`: Target image name, e.g. `your-dockerhub-username/interview-platform`
+
+Pipeline result: two tags pushed per build: `latest` and the short commit SHA.
+
+### Deploy example (Docker host)
+
+```bash
+docker pull $DOCKER_IMAGE_NAME:latest
+docker run -d --name interview-platform \
+  --restart=always \
+  -p 3000:3000 \
+  --env MONGODB_URI=... \
+  --env OPENAI_API_KEY=... \
+  --env REDIS_URL=... \
+  $DOCKER_IMAGE_NAME:latest
+```

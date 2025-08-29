@@ -2,7 +2,7 @@ import Interview from "@/models/interview.model";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const interviewId = params.id;
+  const interviewId = (await params).id;
 
   if (!interviewId) {
     return NextResponse.json(

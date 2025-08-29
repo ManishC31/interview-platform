@@ -1,7 +1,6 @@
 import { AzureOpenAI } from "openai";
 
 export const refineJobDescription = async (jdText: string) => {
-  console.log("jdText:", jdText);
   try {
     const client = new AzureOpenAI({
       endpoint: process.env.AZURE_OPENAI_ENDPOINT,
@@ -195,7 +194,7 @@ export const refineCandidateResume = async (resumeText: string) => {
       max_tokens: 1024,
     });
 
-    const data = response.choices?.[0]?.message?.content;
+    const data = response.choices?.[0]?.message?.content || "{}";
     return JSON.parse(data);
   } catch (error) {
     console.error("Err in refineCandidateResume:", error);
@@ -255,7 +254,7 @@ export const evaluateAnswer = async (jobDescription: Object, resume: Object, que
       max_tokens: 1024,
     });
 
-    return JSON.parse(response.choices[0].message.content);
+    return JSON.parse(response.choices[0].message.content || "{}");
   } catch (error) {
     throw error;
   }
@@ -309,7 +308,7 @@ export const generateInitialQuestion = async (jobDescription: Object, resume: Ob
       max_tokens: 1024,
     });
 
-    return JSON.parse(response.choices[0].message.content);
+    return JSON.parse(response.choices[0].message.content || "{}");
   } catch (error) {
     console.log("Err in generateInitialQuestion:", error);
     throw error;
@@ -436,7 +435,7 @@ export const generateQuestion = async (jobDescription: Object, resume: Object, c
     });
 
     console.log("response:", response.choices[0].message.content);
-    return JSON.parse(response.choices[0].message.content) || null;
+    return JSON.parse(response.choices[0].message.content || "{}");
   } catch (error) {
     console.error("Err in generateQuestion:", error);
     throw error;

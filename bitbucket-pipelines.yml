@@ -1,0 +1,47 @@
+image: atlassian/default-image:4
+
+options:
+  size: 2x
+  docker: true
+
+pipelines:
+  branches:
+    main:
+      - step:
+          name: Build and Push Docker Image
+          services:
+            - docker
+          script:
+            - export IMAGE_NAME="$DOCKER_IMAGE_NAME"
+            - export IMAGE_TAG="${BITBUCKET_COMMIT:0:7}"
+            - echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            - docker build -t "$IMAGE_NAME:$IMAGE_TAG" -t "$IMAGE_NAME:latest" .
+            - docker push "$IMAGE_NAME:$IMAGE_TAG"
+            - docker push "$IMAGE_NAME:latest"
+          caches:
+            - docker
+    develop:
+      - step:
+          name: Build Image (no push)
+          services:
+            - docker
+          script:
+            - docker build -t temp/interview-platform:${BITBUCKET_COMMIT:0:7} .
+          caches:
+            - docker
+
+  pull-requests:
+    '**':
+      - step:
+          name: Validate build
+          services:
+            - docker
+          script:
+            - docker build -t pr-validate:${BITBUCKET_COMMIT:0:7} .
+          caches:
+            - docker
+
+definitions:
+  services:
+    docker:
+      memory: 3072

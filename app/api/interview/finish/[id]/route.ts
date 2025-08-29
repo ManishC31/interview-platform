@@ -1,9 +1,9 @@
 import Interview from "@/models/interview.model";
+import resultQueue from "@/queues/resultQueue";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const interviewId = (await params).id;
-  console.log("interview id:", interviewId);
 
   if (!interviewId) {
     return NextResponse.json(
@@ -21,10 +21,14 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       ended_on: new Date(),
     });
 
+    // add into redis queue
+    const job = await resultQueue.add("standard-submission", { interview_id: interviewId });
+
     return NextResponse.json(
       {
-        success: false,
+        success: true,
         message: "Interview finished successfully",
+        jobId: job.id
       },
       { status: 200 }
     );

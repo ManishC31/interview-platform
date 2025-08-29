@@ -42,5 +42,5 @@ const positionSchema = new Schema(
   }
 );
 
-const Position = mongoose.models.genai_position || mongoose.model("genai_position", positionSchema);
+const Position = mongoose.models.genai2_position || mongoose.model("genai2_position", positionSchema);
 export default Position;

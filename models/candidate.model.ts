@@ -27,6 +27,7 @@ const candidateSchema = new mongoose.Schema(
     },
     email_address: {
       type: String,
+      unique: true,
       required: [true, "Email address is required"],
     },
     contact_number: {
@@ -48,5 +49,5 @@ const candidateSchema = new mongoose.Schema(
   }
 );
 
-const Candidate = mongoose.models.genai_candidate || mongoose.model("genai_candidate", candidateSchema);
+const Candidate = mongoose.models.genai2_candidate || mongoose.model("genai2_candidate", candidateSchema);
 export default Candidate;
